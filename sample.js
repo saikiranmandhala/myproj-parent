@@ -1,3 +1,14 @@
+<!-- HTML layout for grid -->
+<input type="text" id="grid-search" placeholder="Search..." style="margin-bottom: 10px; padding: 5px; width: 300px;">
+<div id="grid"></div>
+
+<!-- Kendo UI detail template -->
+<script type="text/x-kendo-template" id="detail-template">
+    <div class="step-details"></div>
+</script>
+
+<!-- JavaScript code -->
+<script>
 // Entry point
 document.addEventListener("DOMContentLoaded", () => {
     fetch("/api/workflows")
@@ -50,31 +61,99 @@ function extractDocumentName(stepData) {
     }
 }
 
+// Formats JSON as collapsible UI block with expand/collapse
+function formatStepDataJSON(jsonStr) {
+    try {
+        const json = JSON.parse(jsonStr);
+        const pretty = JSON.stringify(json, null, 2);
+        const id = `json-${Math.random().toString(36).substr(2, 9)}`;
+        return `
+            <div class="json-toggle-wrapper">
+                <span class="json-toggle k-icon k-i-plus" onclick="toggleJson('${id}', this)"></span>
+                <pre id="${id}" class='json-viewer hidden'>${pretty}</pre>
+            </div>
+        `;
+    } catch {
+        return `<span style='color: red;'>(Invalid JSON)</span>`;
+    }
+}
+
+// Toggle JSON visibility
+function toggleJson(id, el) {
+    const pre = document.getElementById(id);
+    if (pre.classList.contains("hidden")) {
+        pre.classList.remove("hidden");
+        el.classList.remove("k-i-plus");
+        el.classList.add("k-i-minus");
+    } else {
+        pre.classList.add("hidden");
+        el.classList.remove("k-i-minus");
+        el.classList.add("k-i-plus");
+    }
+}
+
 // Renders the Kendo UI Grid
 function renderGrid(groupedData) {
-    $("#grid").kendoGrid({
+    const grid = $("#grid").kendoGrid({
         dataSource: {
             data: groupedData,
-            pageSize: 10
+            pageSize: 10,
+            schema: {
+                model: {
+                    fields: {
+                        WorkflowID: { type: "string" },
+                        WorkflowName: { type: "string" },
+                        DocumentName: { type: "string" },
+                        CreatedBy: { type: "string" }
+                    }
+                }
+            }
         },
         pageable: true,
         sortable: true,
+        filterable: true,
         columns: [
-            { field: "WorkflowID", title: "Workflow ID", width: "120px" },
-            { field: "WorkflowName", title: "Workflow Name" },
-            { field: "DocumentName", title: "Document Name", width: "200px" },
-            { field: "CreatedBy", title: "Created By" }
+            { field: "WorkflowID", title: "Workflow ID", width: "150px" },
+            { field: "WorkflowName", title: "Workflow Name", width: "200px" },
+            { field: "DocumentName", title: "Document Name", width: "250px" },
+            { field: "CreatedBy", title: "Created By", width: "150px" }
         ],
         detailTemplate: kendo.template($("#detail-template").html()),
         detailInit: detailInit,
         dataBound: function () {
-            this.expandRow(this.tbody.find("tr.k-master-row").first());
+            const rows = this.tbody.find("tr.k-master-row");
+            rows.each(function () {
+                const iconCell = $(this).find("td.k-hierarchy-cell").first();
+                const icon = iconCell.find(".k-icon");
+                icon.removeClass("k-i-expand k-i-collapse").addClass("k-i-plus");
+            });
+        },
+        expand: function (e) {
+            const icon = $(e.masterRow).find(".k-icon");
+            icon.removeClass("k-i-plus").addClass("k-i-minus");
+        },
+        collapse: function (e) {
+            const icon = $(e.masterRow).find(".k-icon");
+            icon.removeClass("k-i-minus").addClass("k-i-plus");
         }
+    }).data("kendoGrid");
+
+    $("#grid-search").on("input", function () {
+        const value = $(this).val();
+        grid.dataSource.filter({
+            logic: "or",
+            filters: [
+                { field: "WorkflowID", operator: "contains", value },
+                { field: "WorkflowName", operator: "contains", value },
+                { field: "DocumentName", operator: "contains", value },
+                { field: "CreatedBy", operator: "contains", value }
+            ]
+        });
     });
 }
 
 // Initializes detail grid per row
-def detailInit(e) {
+function detailInit(e) {
     $("<div/>").appendTo(e.detailCell).kendoGrid({
         dataSource: {
             data: e.data.Steps,
@@ -83,14 +162,52 @@ def detailInit(e) {
         scrollable: false,
         pageable: true,
         columns: [
-            { field: "StepID", title: "Step ID", width: "100px" },
-            { field: "StepName", title: "Step Name" },
-            { field: "StepData", title: "Step Data" },
+            { field: "StepID", title: "Step ID", width: "120px" },
+            { field: "StepName", title: "Step Name", width: "200px" },
+            {
+                field: "StepData",
+                title: "Step Data",
+                width: "400px",
+                template: function(dataItem) {
+                    return formatStepDataJSON(dataItem.StepData);
+                }
+            },
             {
                 field: "CreatedDate",
                 title: "Created Date",
-                template: "#= kendo.toString(kendo.parseDate(CreatedDate), 'yyyy-MM-dd HH:mm') #"
+                template: "#= kendo.toString(kendo.parseDate(CreatedDate), 'yyyy-MM-dd HH:mm') #",
+                width: "180px"
             }
         ]
     });
 }
+</script>
+
+<style>
+.json-viewer {
+    background-color: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 10px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow: auto;
+    margin-top: 5px;
+}
+
+.hidden {
+    display: none;
+}
+
+.json-toggle {
+    cursor: pointer;
+    display: inline-block;
+    margin-bottom: 5px;
+    font-size: 14px;
+}
+
+.json-toggle-wrapper {
+    margin-bottom: 5px;
+}
+</style>

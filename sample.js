@@ -168,6 +168,7 @@ function detailInit(e) {
                 field: "StepData",
                 title: "Step Data",
                 width: "400px",
+                encoded: false,
                 template: function(dataItem) {
                     return formatStepDataJSON(dataItem.StepData);
                 }

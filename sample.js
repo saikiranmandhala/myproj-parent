@@ -61,35 +61,49 @@ function extractDocumentName(stepData) {
     }
 }
 
-// Formats JSON as collapsible UI block with expand/collapse
+// Formats JSON with eye icon that opens a popup window
 function formatStepDataJSON(jsonStr) {
-    try {
-        const json = JSON.parse(jsonStr);
-        const pretty = JSON.stringify(json, null, 2);
-        const id = `json-${Math.random().toString(36).substr(2, 9)}`;
-        return `
-            <div class="json-toggle-wrapper">
-                <span class="json-toggle k-icon k-i-plus" onclick="toggleJson('${id}', this)"></span>
-                <pre id="${id}" class='json-viewer hidden'>${pretty}</pre>
-            </div>
-        `;
-    } catch {
-        return `<span style='color: red;'>(Invalid JSON)</span>`;
-    }
+    const json = JSON.parse(jsonStr);
+    const pretty = JSON.stringify(json, null, 2);
+    const uid = `json-${Math.random().toString(36).substr(2, 9)}`;
+
+    return `
+        <span class="k-icon k-i-eye" title="View JSON" style="cursor:pointer;" onclick="showJsonModal(\`${uid}\`)" data-json='${pretty.replace(/'/g, "&#39;")}' id="${uid}-icon"></span>
+        <textarea id="${uid}-data" style="display:none;">${pretty}</textarea>
+    `;
 }
 
-// Toggle JSON visibility
-function toggleJson(id, el) {
-    const pre = document.getElementById(id);
-    if (pre.classList.contains("hidden")) {
-        pre.classList.remove("hidden");
-        el.classList.remove("k-i-plus");
-        el.classList.add("k-i-minus");
-    } else {
-        pre.classList.add("hidden");
-        el.classList.remove("k-i-minus");
-        el.classList.add("k-i-plus");
-    }
+function showJsonModal(uid) {
+    const json = document.getElementById(`${uid}-data`).value;
+    const wnd = $("<div />").kendoWindow({
+        title: "Step Data",
+        modal: true,
+        visible: false,
+        resizable: true,
+        width: "600px",
+        actions: ["Close"],
+        close: function () {
+            this.destroy();
+        }
+    }).data("kendoWindow");
+
+    const content = `
+        <div style="padding:10px">
+            <pre style="background:#f5f5f5;border:1px solid #ccc;padding:10px;max-height:400px;overflow:auto;font-family:monospace;white-space:pre-wrap;">${json}</pre>
+            <button class="k-button k-primary" onclick="copyJsonToClipboard(\`${uid}\`)" style="margin-top:10px">Copy JSON</button>
+        </div>
+    `;
+
+    wnd.content(content).center().open();
+}
+
+function copyJsonToClipboard(uid) {
+    const textarea = document.getElementById(`${uid}-data`);
+    textarea.style.display = "block";
+    textarea.select();
+    document.execCommand("copy");
+    textarea.style.display = "none";
+    alert("JSON copied to clipboard.");
 }
 
 // Renders the Kendo UI Grid
@@ -119,22 +133,34 @@ function renderGrid(groupedData) {
             { field: "CreatedBy", title: "Created By", width: "150px" }
         ],
         detailTemplate: kendo.template($("#audit-detail-template").html()),
-        detailInit: detailInit,
-        dataBound: function () {
-            const rows = this.tbody.find("tr.k-master-row");
-            rows.each(function () {
-                const iconCell = $(this).find("td.k-hierarchy-cell").first();
-                const icon = iconCell.find(".k-icon");
-                icon.removeClass("k-i-expand k-i-collapse").addClass("k-i-plus");
+        detailInit: function(e) {
+            $("<div/>").appendTo(e.detailCell).kendoGrid({
+                dataSource: {
+                    data: e.data.Steps,
+                    pageSize: 5
+                },
+                scrollable: false,
+                pageable: true,
+                columns: [
+                    { field: "StepID", title: "Step ID", width: "120px" },
+                    { field: "StepName", title: "Step Name", width: "200px" },
+                    {
+                        field: "StepData",
+                        title: "Step Data",
+                        width: "100px",
+                        encoded: false,
+                        template: function(dataItem) {
+                            return formatStepDataJSON(dataItem.StepData);
+                        }
+                    },
+                    {
+                        field: "CreatedDate",
+                        title: "Created Date",
+                        template: "#= kendo.toString(kendo.parseDate(CreatedDate), 'yyyy-MM-dd HH:mm') #",
+                        width: "180px"
+                    }
+                ]
             });
-        },
-        expand: function (e) {
-            const icon = $(e.masterRow).find(".k-icon");
-            icon.removeClass("k-i-plus").addClass("k-i-minus");
-        },
-        collapse: function (e) {
-            const icon = $(e.masterRow).find(".k-icon");
-            icon.removeClass("k-i-minus").addClass("k-i-plus");
         }
     }).data("kendoGrid");
 
@@ -151,64 +177,10 @@ function renderGrid(groupedData) {
         });
     });
 }
-
-// Initializes detail grid per row
-function detailInit(e) {
-    $("<div/>").appendTo(e.detailCell).kendoGrid({
-        dataSource: {
-            data: e.data.Steps,
-            pageSize: 5
-        },
-        scrollable: false,
-        pageable: true,
-        columns: [
-            { field: "StepID", title: "Step ID", width: "120px" },
-            { field: "StepName", title: "Step Name", width: "200px" },
-            {
-                field: "StepData",
-                title: "Step Data",
-                width: "400px",
-                encoded: false,
-                template: function(dataItem) {
-                    return formatStepDataJSON(dataItem.StepData);
-                }
-            },
-            {
-                field: "CreatedDate",
-                title: "Created Date",
-                template: "#= kendo.toString(kendo.parseDate(CreatedDate), 'yyyy-MM-dd HH:mm') #",
-                width: "180px"
-            }
-        ]
-    });
-}
 </script>
 
 <style>
-.json-viewer {
-    background-color: #f5f5f5;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    padding: 10px;
-    font-family: monospace;
-    white-space: pre-wrap;
-    max-height: 300px;
-    overflow: auto;
-    margin-top: 5px;
-}
-
 .hidden {
     display: none;
-}
-
-.json-toggle {
-    cursor: pointer;
-    display: inline-block;
-    margin-bottom: 5px;
-    font-size: 14px;
-}
-
-.json-toggle-wrapper {
-    margin-bottom: 5px;
 }
 </style>

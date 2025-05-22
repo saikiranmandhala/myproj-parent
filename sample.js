@@ -1,9 +1,9 @@
 <!-- HTML layout for grid -->
 <input type="text" id="grid-search" placeholder="Search..." style="margin-bottom: 10px; padding: 5px; width: 300px;">
-<div id="grid"></div>
+<div id="workflowAuditGrid"></div>
 
 <!-- Kendo UI detail template -->
-<script type="text/x-kendo-template" id="detail-template">
+<script type="text/x-kendo-template" id="audit-detail-template">
     <div class="step-details"></div>
 </script>
 
@@ -94,7 +94,7 @@ function toggleJson(id, el) {
 
 // Renders the Kendo UI Grid
 function renderGrid(groupedData) {
-    const grid = $("#grid").kendoGrid({
+    const grid = $("#workflowAuditGrid").kendoGrid({
         dataSource: {
             data: groupedData,
             pageSize: 10,
@@ -118,7 +118,7 @@ function renderGrid(groupedData) {
             { field: "DocumentName", title: "Document Name", width: "250px" },
             { field: "CreatedBy", title: "Created By", width: "150px" }
         ],
-        detailTemplate: kendo.template($("#detail-template").html()),
+        detailTemplate: kendo.template($("#audit-detail-template").html()),
         detailInit: detailInit,
         dataBound: function () {
             const rows = this.tbody.find("tr.k-master-row");

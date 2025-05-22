@@ -1,5 +1,6 @@
 <!-- HTML layout for grid -->
 <input type="text" id="grid-search" placeholder="Search..." style="margin-bottom: 10px; padding: 5px; width: 300px;">
+<input type="date" id="date-picker" style="margin-left: 10px; padding: 5px;">
 <div id="workflowAuditGrid"></div>
 
 <!-- Kendo UI detail template -->
@@ -10,8 +11,11 @@
 <!-- JavaScript code -->
 <script>
 // Entry point
-document.addEventListener("DOMContentLoaded", () => {
-    fetch("/api/workflows")
+function fetchAndRenderData(params = {}) {
+    const url = new URL("/api/workflows", window.location.origin);
+    Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+
+    fetch(url)
         .then(response => {
             if (!response.ok) throw new Error("Failed to load data");
             return response.json();
@@ -24,6 +28,22 @@ document.addEventListener("DOMContentLoaded", () => {
             console.error("Error fetching workflow data:", error);
             alert("Unable to load workflows.");
         });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    fetchAndRenderData();
+
+    $("#grid-search").on("input", function () {
+        const search = $(this).val();
+        const date = $("#date-picker").val();
+        fetchAndRenderData({ search, date });
+    });
+
+    $("#date-picker").on("change", function () {
+        const date = $(this).val();
+        const search = $("#grid-search").val();
+        fetchAndRenderData({ search, date });
+    });
 });
 
 // Groups step data by WorkflowID
@@ -68,7 +88,7 @@ function formatStepDataJSON(jsonStr) {
     const uid = `json-${Math.random().toString(36).substr(2, 9)}`;
 
     return `
-        <span class="k-icon k-i-eye" title="View JSON" style="cursor:pointer;" onclick="showJsonModal(\`${uid}\`)" data-json='${pretty.replace(/'/g, "&#39;")}' id="${uid}-icon"></span>
+        <span class="k-icon k-i-eye" title="View JSON" style="cursor:pointer;" onclick="showJsonModal(\"${uid}\")" data-json='${pretty.replace(/'/g, "&#39;")}' id="${uid}-icon"></span>
         <textarea id="${uid}-data" style="display:none;">${pretty}</textarea>
     `;
 }
@@ -90,19 +110,22 @@ function showJsonModal(uid) {
     const content = `
         <div style="padding:10px">
             <pre style="background:#f5f5f5;border:1px solid #ccc;padding:10px;max-height:400px;overflow:auto;font-family:monospace;white-space:pre-wrap;">${json}</pre>
-            <button class="k-button k-primary" onclick="copyJsonToClipboard(\`${uid}\`)" style="margin-top:10px">Copy JSON</button>
+            <button class="k-button k-primary" id="copy-btn-${uid}" style="margin-top:10px">Copy JSON</button>
         </div>
     `;
 
     wnd.content(content).center().open();
+
+    $(`#copy-btn-${uid}`).on("click", function () {
+        copyJsonToClipboard(uid);
+    });
 }
 
 function copyJsonToClipboard(uid) {
-    const textarea = document.getElementById(`${uid}-data`);
-    textarea.style.display = "block";
-    textarea.select();
+    const $textarea = $(`#${uid}-data`).show();
+    $textarea[0].select();
     document.execCommand("copy");
-    textarea.style.display = "none";
+    $textarea.hide();
     alert("JSON copied to clipboard.");
 }
 
@@ -163,19 +186,6 @@ function renderGrid(groupedData) {
             });
         }
     }).data("kendoGrid");
-
-    $("#grid-search").on("input", function () {
-        const value = $(this).val();
-        grid.dataSource.filter({
-            logic: "or",
-            filters: [
-                { field: "WorkflowID", operator: "contains", value },
-                { field: "WorkflowName", operator: "contains", value },
-                { field: "DocumentName", operator: "contains", value },
-                { field: "CreatedBy", operator: "contains", value }
-            ]
-        });
-    });
 }
 </script>
 
